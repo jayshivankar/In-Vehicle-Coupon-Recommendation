@@ -64,11 +64,14 @@ class CouponRecommender:
             # with open('xgboost_model.pkl', 'rb') as f:
             #     self.model = pickle.load(f)
 
-            # Example feature names (replace with your actual features)
+            # Updated feature names based on your dataset
             self.feature_names = [
-                'destination', 'passenger', 'weather', 'temperature',
-                'coupon_type', 'expiration', 'gender', 'age', 'marital_status',
-                'has_children', 'education', 'occupation', 'income'
+                'destination', 'passanger', 'weather', 'temperature',
+                'coupon', 'expiration', 'gender', 'age', 'maritalStatus',
+                'has_children', 'education', 'occupation', 'income',
+                'Bar', 'CoffeeHouse', 'CarryAway', 'RestaurantLessThan20', 'Restaurant20To50',
+                'toCoupon_GEQ15min', 'toCoupon_GEQ25min',
+                'direction_same'
             ]
 
             return True
@@ -122,52 +125,142 @@ def show_prediction_interface(recommender):
     """Show prediction interface"""
     st.header("🔮 Predict Coupon Acceptance")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.subheader("User Details")
-        age = st.slider("Age", 18, 65, 30)
+        st.subheader("User Profile")
+
+        # Age with actual categories from data
+        age_options = ['below21', '21', '26', '31', '36', '41', '46', '50plus']
+        age = st.selectbox("Age", age_options)
+
         gender = st.selectbox("Gender", ["Male", "Female"])
-        marital_status = st.selectbox("Marital Status",
-                                      ["Single", "Married", "Divorced", "Widowed"])
+
+        # Marital Status with actual categories
+        marital_options = ["Single", "Married partner", "Unmarried partner", "Divorced", "Widowed"]
+        maritalStatus = st.selectbox("Marital Status", marital_options)
+
         has_children = st.selectbox("Has Children", ["No", "Yes"])
-        education = st.selectbox("Education",
-                                 ["High School", "Some College", "Bachelor's", "Master's", "PhD"])
-        occupation = st.selectbox("Occupation",
-                                  ["Student", "Employed", "Unemployed", "Retired"])
-        income = st.selectbox("Income Level",
-                              ["Low", "Medium", "High", "Very High"])
+
+        # Education with actual categories
+        education_options = [
+            "Some college - no degree", "Bachelors degree",
+            "Graduate degree (Masters or Doctorate)", "Associates degree",
+            "High School Graduate", "Some High School"
+        ]
+        education = st.selectbox("Education", education_options)
+
+        # Occupation with actual categories (top 10 for simplicity)
+        occupation_options = [
+            "Unemployed", "Student", "Computer & Mathematical", "Sales & Related",
+            "Education&Training&Library", "Management", "Office & Administrative Support",
+            "Arts Design Entertainment Sports & Media", "Business & Financial", "Retired"
+        ]
+        occupation = st.selectbox("Occupation", occupation_options)
+
+        # Income with actual categories
+        income_options = [
+            "Less than $12500", "$12500 - $24999", "$25000 - $37499",
+            "$37500 - $49999", "$50000 - $62499", "$62500 - $74999",
+            "$75000 - $87499", "$87500 - $99999", "$100000 or More"
+        ]
+        income = st.selectbox("Income", income_options)
 
     with col2:
         st.subheader("Context Details")
-        destination = st.selectbox("Destination",
-                                   ["No Urgent Place", "Home", "Work", "Leisure"])
-        passenger = st.selectbox("Passenger Type",
-                                 ["Alone", "With Friends", "With Family", "With Partner"])
-        weather = st.selectbox("Weather",
-                               ["Sunny", "Rainy", "Snowy", "Cloudy"])
-        temperature = st.slider("Temperature (°F)", 0, 100, 70)
-        coupon_type = st.selectbox("Coupon Type",
-                                   ["Restaurant <$20", "Coffee House", "Carry Out",
-                                    "Bar", "Restaurant $20-50"])
-        expiration = st.selectbox("Coupon Expiration",
-                                  ["2 hours", "1 day", "3 days", "1 week"])
 
-    # Convert inputs to feature values (you'll need to map these to your actual encoding)
+        destination = st.selectbox("Destination", ["No Urgent Place", "Home", "Work"])
+
+        # Passenger with correct spelling and categories
+        passenger_options = ["Alone", "Friend(s)", "Partner", "Kid(s)"]
+        passanger = st.selectbox("Passenger Type", passenger_options)
+
+        weather = st.selectbox("Weather", ["Sunny", "Snowy", "Rainy"])
+
+        temperature = st.slider("Temperature (°F)", 0, 100, 70)
+
+        # Coupon type with actual categories
+        coupon_options = [
+            "Coffee House", "Restaurant(<20)", "Carry out & Take away",
+            "Bar", "Restaurant(20-50)"
+        ]
+        coupon = st.selectbox("Coupon Type", coupon_options)
+
+        expiration = st.selectbox("Coupon Expiration", ["2h", "1d"])
+
+    with col3:
+        st.subheader("Behavioral Factors")
+
+        # Visit frequency options
+        freq_options = ["never", "less1", "1~3", "4~8", "gt8"]
+
+        st.write("**How often do you visit:**")
+        Bar = st.selectbox("Bar", freq_options)
+        CoffeeHouse = st.selectbox("Coffee House", freq_options)
+        CarryAway = st.selectbox("Carry Away", freq_options)
+        RestaurantLessThan20 = st.selectbox("Restaurant <$20", freq_options)
+        Restaurant20To50 = st.selectbox("Restaurant $20-50", freq_options)
+
+        st.write("**Travel Time to Coupon:**")
+        toCoupon_GEQ15min = st.selectbox("≥ 15 minutes", ["No", "Yes"])
+        toCoupon_GEQ25min = st.selectbox("≥ 25 minutes", ["No", "Yes"])
+
+        st.write("**Direction:**")
+        direction_same = st.selectbox("Same direction as destination", ["No", "Yes"])
+
+    # Convert all inputs to feature values
     input_features = [
-        1 if destination == "No Urgent Place" else 2 if destination == "Home" else 3,  # destination
-        1 if passenger == "Alone" else 2 if passenger == "With Friends" else 3,  # passenger
-        1 if weather == "Sunny" else 2,  # weather
-        temperature,  # temperature
-        1 if coupon_type == "Restaurant <$20" else 2 if coupon_type == "Coffee House" else 3,  # coupon_type
-        1 if expiration == "2 hours" else 2,  # expiration
-        1 if gender == "Male" else 0,  # gender
-        age,  # age
-        1 if marital_status == "Single" else 2 if marital_status == "Married" else 3,  # marital_status
-        1 if has_children == "Yes" else 0,  # has_children
-        1 if education == "High School" else 2 if education == "Some College" else 3,  # education
-        1 if occupation == "Student" else 2 if occupation == "Employed" else 3,  # occupation
-        1 if income == "Low" else 2 if income == "Medium" else 3  # income
+        # Destination mapping
+        0 if destination == "No Urgent Place" else 1 if destination == "Home" else 2,
+
+        # Passenger mapping
+        0 if passanger == "Alone" else 1 if passanger == "Friend(s)" else 2 if passanger == "Partner" else 3,
+
+        # Weather mapping
+        0 if weather == "Sunny" else 1 if weather == "Snowy" else 2,
+
+        temperature,  # temperature (continuous)
+
+        # Coupon mapping
+        0 if coupon == "Coffee House" else 1 if coupon == "Restaurant(<20)" else 2 if coupon == "Carry out & Take away" else 3 if coupon == "Bar" else 4,
+
+        # Expiration mapping
+        0 if expiration == "2h" else 1,
+
+        # Gender mapping
+        0 if gender == "Female" else 1,
+
+        # Age mapping
+        age_options.index(age),
+
+        # Marital Status mapping
+        marital_options.index(maritalStatus),
+
+        # Has children mapping
+        1 if has_children == "Yes" else 0,
+
+        # Education mapping
+        education_options.index(education),
+
+        # Occupation mapping
+        occupation_options.index(occupation),
+
+        # Income mapping
+        income_options.index(income),
+
+        # Behavioral factors - frequency mappings
+        freq_options.index(Bar),
+        freq_options.index(CoffeeHouse),
+        freq_options.index(CarryAway),
+        freq_options.index(RestaurantLessThan20),
+        freq_options.index(Restaurant20To50),
+
+        # Travel time mappings
+        1 if toCoupon_GEQ15min == "Yes" else 0,
+        1 if toCoupon_GEQ25min == "Yes" else 0,
+
+        # Direction mappings
+        1 if direction_same == "Yes" else 0,
     ]
 
     # Prediction button
@@ -203,26 +296,39 @@ def show_prediction_interface(recommender):
 
                 with col2:
                     # Probability gauge
-                    accept_prob = probability[1] * 100
+                    accept_prob = probability[1] * 100 if probability is not None else 0
                     st.metric("Acceptance Probability", f"{accept_prob:.1f}%")
 
                     # Progress bar
                     st.progress(int(accept_prob))
 
-                    st.write(
-                        f"**Confidence:** {'High' if accept_prob > 70 else 'Medium' if accept_prob > 50 else 'Low'}")
+                    confidence_level = 'High' if accept_prob > 70 else 'Medium' if accept_prob > 50 else 'Low'
+                    st.write(f"**Confidence:** {confidence_level}")
 
                 # Feature importance (simulated)
-                st.subheader("Key Factors")
+                st.subheader("Key Influencing Factors")
                 factors = [
                     ("Coupon Type", "High impact"),
                     ("Passenger Type", "Medium impact"),
-                    ("Temperature", "Low impact"),
-                    ("Destination", "Medium impact")
+                    ("Visit Frequency to Similar Places", "High impact"),
+                    ("Travel Time", "Medium impact"),
+                    ("Income Level", "Medium impact"),
+                    ("Age Group", "Low impact")
                 ]
 
                 for factor, impact in factors:
                     st.write(f"• **{factor}:** {impact}")
+
+                # Show input summary
+                with st.expander("View Input Summary"):
+                    st.write("**User Profile:**")
+                    st.write(f"- Age: {age}, Gender: {gender}, Marital Status: {maritalStatus}")
+                    st.write(f"- Education: {education}, Occupation: {occupation}, Income: {income}")
+
+                    st.write("**Context:**")
+                    st.write(f"- Destination: {destination}, Passenger: {passanger}")
+                    st.write(f"- Weather: {weather}, Temperature: {temperature}°F")
+                    st.write(f"- Coupon: {coupon}, Expires in: {expiration}")
 
 
 def show_model_analysis():
@@ -250,13 +356,14 @@ def show_model_analysis():
         st.pyplot(fig)
 
     st.subheader("Feature Importance")
-    # Simulated feature importance
-    features = ['Coupon Type', 'Passenger', 'Temperature', 'Destination', 'Expiration']
-    importance = [0.25, 0.19, 0.15, 0.11, 0.09]
+    # Simulated feature importance based on your dataset
+    features = ['Coupon Type', 'Bar Visit Freq', 'Passenger', 'Restaurant<$20 Freq',
+                'Travel Time ≥15min', 'Income', 'Coffee House Freq', 'Age', 'Temperature']
+    importance = [0.25, 0.19, 0.15, 0.11, 0.09, 0.07, 0.06, 0.05, 0.03]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     sns.barplot(x=importance, y=features, palette='viridis', ax=ax)
-    ax.set_title('Top 5 Feature Importances')
+    ax.set_title('Top Feature Importances')
     ax.set_xlabel('Importance Score')
     plt.tight_layout()
     st.pyplot(fig)
@@ -267,16 +374,17 @@ def show_about_page():
     st.header("About This Project")
 
     st.write("""
-    ### 🎫 Coupon Recommendation System
+    ### 🎫 In-Vehicle Coupon Recommendation System
 
     This machine learning system predicts whether a user will accept a coupon 
-    based on their profile and context information.
+    based on their profile, context, and behavioral information.
 
-    **Key Features:**
-    - 🤖 Powered by XGBoost algorithm
-    - 📊 74.1% prediction accuracy
-    - 🔍 Real-time predictions
-    - 📈 Model performance analytics
+    **Dataset Features:**
+    - **User Profile:** Age, Gender, Marital Status, Education, Occupation, Income
+    - **Context:** Destination, Passenger, Weather, Temperature
+    - **Coupon Details:** Type, Expiration time
+    - **Behavioral:** Visit frequency to various establishments
+    - **Travel:** Time to coupon location and direction
 
     **Model Performance:**
     - **Accuracy:** 74.1%
@@ -286,13 +394,13 @@ def show_about_page():
 
     **Top Influencing Factors:**
     1. Coupon Type
-    2. Passenger Type
-    3. Temperature
-    4. Destination
-    5. Expiration Time
+    2. Bar Visit Frequency
+    3. Passenger Type
+    4. Restaurant <$20 Visit Frequency
+    5. Travel Time to Coupon Location
 
-    *Note: This is a demonstration app. In production, it would connect to a 
-    trained model and real-time data sources.*
+    *Note: This is a demonstration app. The actual model will be connected 
+    through the backend API when deployed in production.*
     """)
 
 
