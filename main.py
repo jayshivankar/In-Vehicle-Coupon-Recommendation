@@ -1,408 +1,426 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import LabelEncoder
 import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import pickle
 from xgboost import XGBClassifier
-from sklearn.metrics import classification_report, confusion_matrix
 
-# Page configuration
+# page config
 st.set_page_config(
-    page_title="Coupon Recommendation System",
+    page_title="CouponCraft",
     page_icon="🎫",
-    layout="wide"
+    layout='wide',
+    initial_sidebar_state="collapsed",
 )
 
-# Custom CSS
 st.markdown("""
-<style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 2rem;
+    <style type="text/css">
+    blockquote {
+        margin: 1em 0px 1em -1px;
+        padding: 0px 0px 0px 1.2em;
+        font-size: 20px;
+        border-left: 5px solid rgb(230, 234, 241);
     }
-    .prediction-box {
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
+    blockquote p {
+        font-size: 30px;
+        color: #FFFFFF;
     }
-    .accept {
-        background-color: #d4edda;
-        border: 2px solid #c3e6cb;
+    [data-testid=stSidebar] {
+        background-color: rgb(129, 164, 182);
+        color: #FFFFFF;
     }
-    .reject {
-        background-color: #f8d7da;
-        border: 2px solid #f5c6cb;
+    [aria-selected="true"] {
+         color: #000000;
     }
-</style>
+    </style>
 """, unsafe_allow_html=True)
 
 
-class CouponRecommender:
-    def __init__(self):
-        self.model = None
-        self.feature_names = None
+# ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- #
+# Defining the functions for each page
+def home():
+    st.subheader('Welcome to :blue[CouponCraft:] Your Personalized Coupon Recommendation System!')
+    st.write(
+        "Discover the power of data-driven coupon recommendations. Our advanced machine learning system analyzes customer behavior and contextual factors to provide personalized coupon offers that maximize acceptance rates and customer engagement.")
 
-    def load_model(self):
-        """Load trained model"""
-        try:
-            # Initialize model with best parameters
-            self.model = XGBClassifier(
-                colsample_bytree=0.8,
-                learning_rate=0.1,
-                max_depth=7,
-                min_child_weight=3,
-                n_estimators=100,
-                subsample=1.0,
-                random_state=42,
-                eval_metric='logloss'
-            )
+    st.write(
+        "Traditional coupon strategies often miss the mark, leading to wasted marketing efforts and customer dissatisfaction. By leveraging XGBoost machine learning, our system identifies the perfect coupon for each customer profile, ensuring higher conversion rates and improved customer loyalty.")
 
-            # In a real app, you'd load a pre-trained model:
-            # with open('xgboost_model.pkl', 'rb') as f:
-            #     self.model = pickle.load(f)
-
-            # Updated feature names based on your dataset
-            self.feature_names = [
-                'destination', 'passanger', 'weather', 'temperature',
-                'coupon', 'expiration', 'gender', 'age', 'maritalStatus',
-                'has_children', 'education', 'occupation', 'income',
-                'Bar', 'CoffeeHouse', 'CarryAway', 'RestaurantLessThan20', 'Restaurant20To50',
-                'toCoupon_GEQ15min', 'toCoupon_GEQ25min',
-                'direction_same'
-            ]
-
-            return True
-        except Exception as e:
-            st.error(f"Error loading model: {e}")
-            return False
-
-    def predict_coupon_acceptance(self, input_features):
-        """Make prediction"""
-        try:
-            # Convert input to numpy array
-            input_array = np.array(input_features).reshape(1, -1)
-
-            # Make prediction
-            prediction = self.model.predict(input_array)[0]
-            probability = self.model.predict_proba(input_array)[0]
-
-            return prediction, probability
-        except Exception as e:
-            st.error(f"Prediction error: {e}")
-            return None, None
-
-
-def main():
-    # Header
-    st.markdown('<h1 class="main-header">🎫 Coupon Recommendation System</h1>',
-                unsafe_allow_html=True)
-
-    # Initialize recommender
-    recommender = CouponRecommender()
-
-    # Sidebar for navigation
-    st.sidebar.title("Navigation")
-    app_mode = st.sidebar.selectbox("Choose Mode",
-                                    ["Prediction", "Model Analysis", "About"])
-
-    # Load model
-    if not recommender.load_model():
-        st.error("Failed to load model. Please check the model file.")
-        return
-
-    if app_mode == "Prediction":
-        show_prediction_interface(recommender)
-    elif app_mode == "Model Analysis":
-        show_model_analysis()
-    else:
-        show_about_page()
-
-
-def show_prediction_interface(recommender):
-    """Show prediction interface"""
-    st.header("🔮 Predict Coupon Acceptance")
-
-    col1, col2, col3 = st.columns(3)
-
+    st.subheader(':blue[Key Features]')
+    col1, col2 = st.columns(2)
     with col1:
-        st.subheader("User Profile")
-
-        # Age with actual categories from data
-        age_options = ['below21', '21', '26', '31', '36', '41', '46', '50plus']
-        age = st.selectbox("Age", age_options)
-
-        gender = st.selectbox("Gender", ["Male", "Female"])
-
-        # Marital Status with actual categories
-        marital_options = ["Single", "Married partner", "Unmarried partner", "Divorced", "Widowed"]
-        maritalStatus = st.selectbox("Marital Status", marital_options)
-
-        has_children = st.selectbox("Has Children", ["No", "Yes"])
-
-        # Education with actual categories
-        education_options = [
-            "Some college - no degree", "Bachelors degree",
-            "Graduate degree (Masters or Doctorate)", "Associates degree",
-            "High School Graduate", "Some High School"
-        ]
-        education = st.selectbox("Education", education_options)
-
-        # Occupation with actual categories (top 10 for simplicity)
-        occupation_options = [
-            "Unemployed", "Student", "Computer & Mathematical", "Sales & Related",
-            "Education&Training&Library", "Management", "Office & Administrative Support",
-            "Arts Design Entertainment Sports & Media", "Business & Financial", "Retired"
-        ]
-        occupation = st.selectbox("Occupation", occupation_options)
-
-        # Income with actual categories
-        income_options = [
-            "Less than $12500", "$12500 - $24999", "$25000 - $37499",
-            "$37500 - $49999", "$50000 - $62499", "$62500 - $74999",
-            "$75000 - $87499", "$87500 - $99999", "$100000 or More"
-        ]
-        income = st.selectbox("Income", income_options)
+        st.subheader(':orange[Data Insights Explorer:]')
+        st.write(
+            'Dive deep into comprehensive data analysis with interactive visualizations. Understand customer patterns, coupon preferences, and behavioral trends that drive coupon acceptance decisions.')
 
     with col2:
-        st.subheader("Context Details")
+        st.subheader(':green[Smart Prediction Engine:]')
+        st.write(
+            "Utilize our trained XGBoost model to predict coupon acceptance with 74% accuracy. Get real-time predictions based on customer demographics, context, and historical behavior.")
 
-        destination = st.selectbox("Destination", ["No Urgent Place", "Home", "Work"])
+    st.write("Sincerely,")
+    st.subheader("Your Name Here")  # Replace with your name
+    linkedin_url = "https://www.linkedin.com/in/your-profile/"  # Replace with your LinkedIn
+    github_url = "https://github.com/your-profile"  # Replace with your GitHub
 
-        # Passenger with correct spelling and categories
-        passenger_options = ["Alone", "Friend(s)", "Partner", "Kid(s)"]
-        passanger = st.selectbox("Passenger Type", passenger_options)
-
-        weather = st.selectbox("Weather", ["Sunny", "Snowy", "Rainy"])
-
-        temperature = st.slider("Temperature (°F)", 0, 100, 70)
-
-        # Coupon type with actual categories
-        coupon_options = [
-            "Coffee House", "Restaurant(<20)", "Carry out & Take away",
-            "Bar", "Restaurant(20-50)"
-        ]
-        coupon = st.selectbox("Coupon Type", coupon_options)
-
-        expiration = st.selectbox("Coupon Expiration", ["2h", "1d"])
-
-    with col3:
-        st.subheader("Behavioral Factors")
-
-        # Visit frequency options
-        freq_options = ["never", "less1", "1~3", "4~8", "gt8"]
-
-        st.write("**How often do you visit:**")
-        Bar = st.selectbox("Bar", freq_options)
-        CoffeeHouse = st.selectbox("Coffee House", freq_options)
-        CarryAway = st.selectbox("Carry Away", freq_options)
-        RestaurantLessThan20 = st.selectbox("Restaurant <$20", freq_options)
-        Restaurant20To50 = st.selectbox("Restaurant $20-50", freq_options)
-
-        st.write("**Travel Time to Coupon:**")
-        toCoupon_GEQ15min = st.selectbox("≥ 15 minutes", ["No", "Yes"])
-        toCoupon_GEQ25min = st.selectbox("≥ 25 minutes", ["No", "Yes"])
-
-        st.write("**Direction:**")
-        direction_same = st.selectbox("Same direction as destination", ["No", "Yes"])
-
-    # Convert all inputs to feature values
-    input_features = [
-        # Destination mapping
-        0 if destination == "No Urgent Place" else 1 if destination == "Home" else 2,
-
-        # Passenger mapping
-        0 if passanger == "Alone" else 1 if passanger == "Friend(s)" else 2 if passanger == "Partner" else 3,
-
-        # Weather mapping
-        0 if weather == "Sunny" else 1 if weather == "Snowy" else 2,
-
-        temperature,  # temperature (continuous)
-
-        # Coupon mapping
-        0 if coupon == "Coffee House" else 1 if coupon == "Restaurant(<20)" else 2 if coupon == "Carry out & Take away" else 3 if coupon == "Bar" else 4,
-
-        # Expiration mapping
-        0 if expiration == "2h" else 1,
-
-        # Gender mapping
-        0 if gender == "Female" else 1,
-
-        # Age mapping
-        age_options.index(age),
-
-        # Marital Status mapping
-        marital_options.index(maritalStatus),
-
-        # Has children mapping
-        1 if has_children == "Yes" else 0,
-
-        # Education mapping
-        education_options.index(education),
-
-        # Occupation mapping
-        occupation_options.index(occupation),
-
-        # Income mapping
-        income_options.index(income),
-
-        # Behavioral factors - frequency mappings
-        freq_options.index(Bar),
-        freq_options.index(CoffeeHouse),
-        freq_options.index(CarryAway),
-        freq_options.index(RestaurantLessThan20),
-        freq_options.index(Restaurant20To50),
-
-        # Travel time mappings
-        1 if toCoupon_GEQ15min == "Yes" else 0,
-        1 if toCoupon_GEQ25min == "Yes" else 0,
-
-        # Direction mappings
-        1 if direction_same == "Yes" else 0,
-    ]
-
-    # Prediction button
-    if st.button("🎯 Predict Acceptance", type="primary"):
-        with st.spinner("Analyzing..."):
-            prediction, probability = recommender.predict_coupon_acceptance(input_features)
-
-            if prediction is not None:
-                # Display results
-                st.markdown("---")
-                st.subheader("Prediction Results")
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    # Prediction box
-                    if prediction == 1:
-                        st.markdown(
-                            f'<div class="prediction-box accept">'
-                            f'<h3>✅ ACCEPT COUPON</h3>'
-                            f'<p>User is likely to accept this coupon</p>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.markdown(
-                            f'<div class="prediction-box reject">'
-                            f'<h3>❌ REJECT COUPON</h3>'
-                            f'<p>User is unlikely to accept this coupon</p>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-
-                with col2:
-                    # Probability gauge
-                    accept_prob = probability[1] * 100 if probability is not None else 0
-                    st.metric("Acceptance Probability", f"{accept_prob:.1f}%")
-
-                    # Progress bar
-                    st.progress(int(accept_prob))
-
-                    confidence_level = 'High' if accept_prob > 70 else 'Medium' if accept_prob > 50 else 'Low'
-                    st.write(f"**Confidence:** {confidence_level}")
-
-                # Feature importance (simulated)
-                st.subheader("Key Influencing Factors")
-                factors = [
-                    ("Coupon Type", "High impact"),
-                    ("Passenger Type", "Medium impact"),
-                    ("Visit Frequency to Similar Places", "High impact"),
-                    ("Travel Time", "Medium impact"),
-                    ("Income Level", "Medium impact"),
-                    ("Age Group", "Low impact")
-                ]
-
-                for factor, impact in factors:
-                    st.write(f"• **{factor}:** {impact}")
-
-                # Show input summary
-                with st.expander("View Input Summary"):
-                    st.write("**User Profile:**")
-                    st.write(f"- Age: {age}, Gender: {gender}, Marital Status: {maritalStatus}")
-                    st.write(f"- Education: {education}, Occupation: {occupation}, Income: {income}")
-
-                    st.write("**Context:**")
-                    st.write(f"- Destination: {destination}, Passenger: {passanger}")
-                    st.write(f"- Weather: {weather}, Temperature: {temperature}°F")
-                    st.write(f"- Coupon: {coupon}, Expires in: {expiration}")
+    # Add links to your LinkedIn and GitHub profiles
+    st.write(f"LinkedIn: [My LinkedIn Profile]({linkedin_url})", f"GitHub: [My GitHub Profile]({github_url})")
 
 
-def show_model_analysis():
-    """Show model performance analysis"""
-    st.header("📊 Model Performance Analysis")
+# ------------------------------------------------------------------------------------------------------------ #
 
+def eda():
+    data = pd.read_csv('in-vehicle-coupon-recommendation.csv')
+    st.subheader('Exploratory Data Analysis: Understanding Coupon Acceptance Patterns')
+    st.write(
+        'This section provides comprehensive insights into the factors influencing coupon acceptance. Through detailed visualizations and statistical analysis, we uncover the key drivers behind customer decisions to accept or reject coupons.')
+
+    # Data preprocessing (same as your colab)
+    data = data.drop(['car', 'toCoupon_GEQ5min', 'direction_opp'], axis=1)
+
+    # Mode imputation for missing values
+    data['Bar'] = data['Bar'].fillna(data['Bar'].value_counts().index[0])
+    data['CoffeeHouse'] = data['CoffeeHouse'].fillna(data['CoffeeHouse'].value_counts().index[0])
+    data['CarryAway'] = data['CarryAway'].fillna(data['CarryAway'].value_counts().index[0])
+    data['RestaurantLessThan20'] = data['RestaurantLessThan20'].fillna(
+        data['RestaurantLessThan20'].value_counts().index[0])
+    data['Restaurant20To50'] = data['Restaurant20To50'].fillna(data['Restaurant20To50'].value_counts().index[0])
+
+    # Remove duplicates
+    data = data.drop_duplicates()
+
+    # Data overview
+    with st.expander("**Dataset Overview and Missing Values Analysis**"):
+        missing_percentage = np.round(data.isnull().mean() * 100, 2)
+        missing_count = data.isnull().sum()
+        data_types = data.dtypes
+        data_show = data.head(2).T
+        data_show.columns = ['Sample 1', 'Sample 2']
+        detail_report = pd.DataFrame(
+            {'Data Type': data_types, 'Missing Count': missing_count, 'Missing Percentage': missing_percentage})
+        detail_report = pd.concat([data_show, detail_report], axis=1)
+        st.dataframe(detail_report)
+
+    st.divider()
+
+    # Target distribution
+    st.subheader('Target Variable Distribution')
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("Model Metrics")
-        st.metric("Accuracy", "74.1%")
-        st.metric("Precision", "74.3%")
-        st.metric("Recall", "81.7%")
-        st.metric("F1-Score", "77.8%")
-
-    with col2:
-        st.subheader("Confusion Matrix")
-        # Simulated confusion matrix
-        cm = np.array([[193, 67], [46, 204]])
-        fig, ax = plt.subplots(figsize=(6, 4))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax,
-                    xticklabels=['Predicted Reject', 'Predicted Accept'],
-                    yticklabels=['Actual Reject', 'Actual Accept'])
-        ax.set_title('Confusion Matrix')
+        fig, ax = plt.subplots(figsize=(8, 6))
+        data['Accept(Y/N?)'].value_counts().plot(kind='pie', autopct='%0.2f%%', ax=ax)
+        ax.set_ylabel('')
+        ax.set_title('Coupon Acceptance Distribution')
         st.pyplot(fig)
 
-    st.subheader("Feature Importance")
-    # Simulated feature importance based on your dataset
-    features = ['Coupon Type', 'Bar Visit Freq', 'Passenger', 'Restaurant<$20 Freq',
-                'Travel Time ≥15min', 'Income', 'Coffee House Freq', 'Age', 'Temperature']
-    importance = [0.25, 0.19, 0.15, 0.11, 0.09, 0.07, 0.06, 0.05, 0.03]
+    with col2:
+        st.write("**Key Observation:**")
+        st.write(
+            "The dataset shows a relatively balanced distribution between accepted and rejected coupons, which is ideal for training machine learning models without significant class imbalance issues.")
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.barplot(x=importance, y=features, palette='viridis', ax=ax)
-    ax.set_title('Top Feature Importances')
-    ax.set_xlabel('Importance Score')
-    plt.tight_layout()
+    st.divider()
+
+    # Numerical features distribution
+    st.subheader('Numerical Features Distribution by Coupon Acceptance')
+
+    numerical_features = [col for col in data.columns if data[col].dtype != 'O' and col != 'Accept(Y/N?)']
+
+    if numerical_features:
+        # Create subplots for numerical features
+        num_plots = len(numerical_features)
+        cols = 3
+        rows = (num_plots + cols - 1) // cols
+
+        fig, axes = plt.subplots(rows, cols, figsize=(15, 5 * rows))
+        if rows == 1:
+            axes = [axes] if cols == 1 else axes
+        else:
+            axes = axes.flatten()
+
+        for i, feature in enumerate(numerical_features):
+            if i < len(axes):
+                sns.kdeplot(data, x=feature, hue='Accept(Y/N?)',
+                            fill=True, palette=["#8000ff", "#da8829"],
+                            alpha=0.5, ax=axes[i])
+                axes[i].set_xlabel('')
+                axes[i].set_ylabel('')
+                axes[i].set_title(f'{feature} Distribution')
+                axes[i].grid(color='#000000', ls=':', axis='y', dashes=(1, 5))
+
+        # Hide empty subplots
+        for i in range(len(numerical_features), len(axes)):
+            axes[i].set_visible(False)
+
+        plt.tight_layout()
+        st.pyplot(fig)
+
+        st.write("**Observation on Quantitative Data Distribution:**")
+        st.write(
+            "For the quantitative variables, the distribution of rejection follows a similar pattern to acceptance but with varying densities across different feature ranges.")
+
+    st.divider()
+
+    # Categorical features analysis
+    st.subheader('Categorical Features Analysis')
+
+    categorical_features = [col for col in data.columns if
+                            data[col].dtype == 'O' and col not in ['occupation', 'coupon']]
+
+    # Display key categorical features in columns
+    num_features = min(6, len(categorical_features))
+    cols = st.columns(3)
+
+    for i, feature in enumerate(categorical_features[:num_features]):
+        with cols[i % 3]:
+            fig, ax = plt.subplots(figsize=(8, 5))
+            crosstab = pd.crosstab(data[feature], data['Accept(Y/N?)'])
+            crosstab.plot(kind='bar', ax=ax, color=['#FF6B6B', '#4ECDC4'])
+            ax.set_title(f'{feature} vs Acceptance')
+            ax.legend(['Rejected', 'Accepted'])
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
+
+    st.divider()
+
+    # Occupation analysis
+    st.subheader('Occupation-wise Coupon Acceptance')
+    crosstab_df = pd.crosstab(data['occupation'], data['Accept(Y/N?)'])
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    crosstab_df.plot(kind='bar', stacked=True, ax=ax, color=['#FF6B6B', '#4ECDC4'])
+    ax.set_title('Occupation-wise Coupon Acceptance')
+    ax.set_xlabel('Occupation')
+    ax.set_ylabel('Count')
+    plt.xticks(rotation=45, ha='right')
+    ax.legend(['Rejected', 'Accepted'])
     st.pyplot(fig)
 
+    st.divider()
 
-def show_about_page():
-    """Show about page"""
-    st.header("About This Project")
+    # Coupon type analysis for accepted coupons only
+    st.subheader('Coupon Type Analysis (Accepted Coupons Only)')
+    data_accepted = data[data['Accept(Y/N?)'] == 1]
 
+    analysis_features = ['destination', 'education', 'expiration', 'passanger']
+
+    cols = st.columns(2)
+    for i, feature in enumerate(analysis_features):
+        with cols[i % 2]:
+            fig, ax = plt.subplots(figsize=(10, 5))
+            crosstab_df = pd.crosstab(data_accepted['coupon'], data_accepted[feature])
+            crosstab_df.plot(kind='bar', stacked=True, ax=ax)
+            ax.set_title(f'Coupon Type by {feature}')
+            ax.set_xlabel('Coupon Type')
+            ax.set_ylabel('Count')
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
+
+    st.write("**Key Insights from Categorical Analysis:**")
     st.write("""
-    ### 🎫 In-Vehicle Coupon Recommendation System
-
-    This machine learning system predicts whether a user will accept a coupon 
-    based on their profile, context, and behavioral information.
-
-    **Dataset Features:**
-    - **User Profile:** Age, Gender, Marital Status, Education, Occupation, Income
-    - **Context:** Destination, Passenger, Weather, Temperature
-    - **Coupon Details:** Type, Expiration time
-    - **Behavioral:** Visit frequency to various establishments
-    - **Travel:** Time to coupon location and direction
-
-    **Model Performance:**
-    - **Accuracy:** 74.1%
-    - **Precision:** 74.3% 
-    - **Recall:** 81.7%
-    - **F1-Score:** 77.8%
-
-    **Top Influencing Factors:**
-    1. Coupon Type
-    2. Bar Visit Frequency
-    3. Passenger Type
-    4. Restaurant <$20 Visit Frequency
-    5. Travel Time to Coupon Location
-
-    *Note: This is a demonstration app. The actual model will be connected 
-    through the backend API when deployed in production.*
+    1. Customers with 'No Urgent Place' as destination show higher coupon acceptance
+    2. Solo travelers demonstrate higher acceptance rates
+    3. Sunny weather conditions correlate with increased coupon acceptance
+    4. Coffee House and Restaurant(<20) coupons are most frequently accepted
+    5. 1-day expiration coupons are preferred over 2-hour coupons
+    6. Younger age groups (21-26) show highest engagement
+    7. Middle-income brackets ($25K-$50K) are most responsive to coupons
     """)
 
 
-if __name__ == "__main__":
-    main()
+# -------------------------------------------------------------------------------------------------------------- #
+def prediction():
+    st.subheader('Coupon Acceptance Prediction')
+    st.write(
+        "Use our trained XGBoost model to predict whether a customer will accept a coupon based on their profile and context.")
+
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+    with col1:
+        destination_display = ('No Urgent Place', 'Home', 'Work')
+        destination_options = list(range(len(destination_display)))
+        destination = st.selectbox('Destination', destination_options, format_func=lambda x: destination_display[x])
+
+        passanger_display = ('Alone', 'Friend(s)', 'Partner', 'Kid(s)')
+        passanger_options = list(range(len(passanger_display)))
+        passanger = st.selectbox('Passenger', passanger_options, format_func=lambda x: passanger_display[x])
+
+        weather_display = ('Sunny', 'Snowy', 'Rainy')
+        weather_options = list(range(len(weather_display)))
+        weather = st.selectbox('Weather', weather_options, format_func=lambda x: weather_display[x])
+
+        temperature_display = ('80', '55', '30')
+        temperature_options = list(range(len(temperature_display)))
+        temperature = st.selectbox('Temperature', temperature_options, format_func=lambda x: temperature_display[x])
+
+    with col2:
+        time_display = ('2PM', '10AM', '6PM', '7AM', '10PM')
+        time_options = list(range(len(time_display)))
+        time = st.selectbox('Time', time_options, format_func=lambda x: time_display[x])
+
+        coupon_display = ('Restaurant(<20)', 'Coffee House', 'Carry out & Take away', 'Bar', 'Restaurant(20-50)')
+        coupon_options = list(range(len(coupon_display)))
+        coupon = st.selectbox('Coupon Type', coupon_options, format_func=lambda x: coupon_display[x])
+
+        expiration_display = ('1d', '2h')
+        expiration_options = list(range(len(expiration_display)))
+        expiration = st.selectbox('Expiration', expiration_options, format_func=lambda x: expiration_display[x])
+
+        gender_display = ('Female', 'Male')
+        gender_options = list(range(len(gender_display)))
+        gender = st.selectbox('Gender', gender_options, format_func=lambda x: gender_display[x])
+
+    with col3:
+        age_display = ('21', '46', '26', '31', '41', '50plus', '36', 'below21')
+        age_options = list(range(len(age_display)))
+        age = st.selectbox('Age', age_options, format_func=lambda x: age_display[x])
+
+        maritalStatus_display = ('Unmarried partner', 'Single', 'Married partner', 'Divorced', 'Widowed')
+        maritalStatus_options = list(range(len(maritalStatus_display)))
+        maritalStatus = st.selectbox('Marital Status', maritalStatus_options,
+                                     format_func=lambda x: maritalStatus_display[x])
+
+        has_children_display = ('1', '0')
+        has_children_options = list(range(len(has_children_display)))
+        has_children = st.selectbox('Has Children', has_children_options, format_func=lambda x: has_children_display[x])
+
+        education_display = ('Some college - no degree', 'Bachelors degree', 'Associates degree',
+                             'High School Graduate',
+                             'Graduate degree (Masters or Doctorate)', 'Some High School')
+        education_options = list(range(len(education_display)))
+        education = st.selectbox('Education', education_options, format_func=lambda x: education_display[x])
+
+    with col4:
+        occupation_display = ('Unemployed', 'Architecture & Engineering', 'Student', 'Education&Training&Library',
+                              'Healthcare Support', 'Sales & Related', 'Management',
+                              'Arts Design Entertainment Sports & Media',
+                              'Computer & Mathematical', 'Life Physical Social Science', 'Personal Care & Service',
+                              'Community & Social Services', 'Office & Administrative Support',
+                              'Construction & Extraction',
+                              'Legal', 'Installation Maintenance & Repair', 'Business & Financial',
+                              'Food Preparation & Serving Related', 'Production Occupations',
+                              'Building & Grounds Cleaning & Maintenance', 'Transportation & Material Moving',
+                              'Protective Service', 'Healthcare Practitioners & Technical',
+                              'Farming Fishing & Forestry',
+                              'Retired', 'Military')
+        occupation_options = list(range(len(occupation_display)))
+        occupation = st.selectbox('Occupation', occupation_options, format_func=lambda x: occupation_display[x])
+
+        income_display = ('$25000 - $37499', '$12500 - $24999', '$37500 - $49999', '$100000 or More',
+                          '$50000 - $62499', 'Less than $12500', '$87500 - $99999', '$75000 - $87499',
+                          '$62500 - $74999')
+        income_options = list(range(len(income_display)))
+        income = st.selectbox('Income', income_options, format_func=lambda x: income_display[x])
+
+        Bar_display = ('never', 'less1', '1~3', 'gt8', '4~8')
+        Bar_options = list(range(len(Bar_display)))
+        Bar = st.selectbox('Bar Visits', Bar_options, format_func=lambda x: Bar_display[x])
+
+        CoffeeHouse_display = ('never', 'less1', '4~8', '1~3', 'gt8')
+        CoffeeHouse_options = list(range(len(CoffeeHouse_display)))
+        CoffeeHouse = st.selectbox('CoffeeHouse Visits', CoffeeHouse_options,
+                                   format_func=lambda x: CoffeeHouse_display[x])
+
+    with col5:
+        CarryAway_display = ('never', 'less1', '1~3', '4~8', 'gt8')
+        CarryAway_options = list(range(len(CarryAway_display)))
+        CarryAway = st.selectbox('CarryAway Visits', CarryAway_options, format_func=lambda x: CarryAway_display[x])
+
+        RestaurantLessThan20_display = ('4~8', '1~3', 'less1', 'never', 'gt8')
+        RestaurantLessThan20_options = list(range(len(RestaurantLessThan20_display)))
+        RestaurantLessThan20 = st.selectbox('Restaurant <$20 Visits', RestaurantLessThan20_options,
+                                            format_func=lambda x: RestaurantLessThan20_display[x])
+
+        Restaurant20To50_display = ('1~3', 'less1', 'never', '4~8', 'gt8')
+        Restaurant20To50_options = list(range(len(Restaurant20To50_display)))
+        Restaurant20To50 = st.selectbox('Restaurant $20-50 Visits', Restaurant20To50_options,
+                                        format_func=lambda x: Restaurant20To50_display[x])
+
+        toCoupon_GEQ15min_display = ('1', '0')
+        toCoupon_GEQ15min_options = list(range(len(toCoupon_GEQ15min_display)))
+        toCoupon_GEQ15min = st.selectbox('toCoupon >=15min', toCoupon_GEQ15min_options,
+                                         format_func=lambda x: toCoupon_GEQ15min_display[x])
+
+    with col6:
+        toCoupon_GEQ25min_display = ('1', '0')
+        toCoupon_GEQ25min_options = list(range(len(toCoupon_GEQ25min_display)))
+        toCoupon_GEQ25min = st.selectbox('toCoupon >=25min', toCoupon_GEQ25min_options,
+                                         format_func=lambda x: toCoupon_GEQ25min_display[x])
+
+        direction_same_display = ('0', '1')
+        direction_same_options = list(range(len(direction_same_display)))
+        direction_same = st.selectbox('Direction Same', direction_same_options,
+                                      format_func=lambda x: direction_same_display[x])
+
+    if st.button('Predict Coupon Acceptance'):
+        try:
+            # Load your XGBoost model
+            model = pickle.load(open('xgb.pkl', 'rb'))
+
+            # Prepare input data (match the order your model expects)
+            input_data = [
+                destination, passanger, weather, temperature, time, coupon,
+                expiration, gender, age, maritalStatus, has_children,
+                education, occupation, income, Bar, CoffeeHouse,
+                CarryAway, RestaurantLessThan20, Restaurant20To50,
+                toCoupon_GEQ15min, toCoupon_GEQ25min, direction_same
+            ]
+
+            # Make prediction
+            prediction = model.predict([input_data])
+            prediction_proba = model.predict_proba([input_data])
+
+            # Display results
+            st.subheader("Prediction Results")
+
+            if prediction[0] == 1:
+                st.success(f"🎉 The customer is likely to **ACCEPT** the **{coupon_display[coupon]}** coupon")
+                st.metric("Acceptance Probability", f"{prediction_proba[0][1]:.2%}")
+            else:
+                st.error(f"❌ The customer is likely to **REJECT** the **{coupon_display[coupon]}** coupon")
+                st.metric("Rejection Probability", f"{prediction_proba[0][0]:.2%}")
+
+            # Show model performance metrics
+            st.subheader("Model Performance")
+            col1, col2, col3, col4 = st.columns(4)
+
+            # Note: These would typically come from your test set evaluation
+            with col1:
+                st.metric("Accuracy", "73.91%")
+            with col2:
+                st.metric("Precision", "74.29%")
+            with col3:
+                st.metric("Recall", "81.26%")
+            with col4:
+                st.metric("F1-Score", "77.62%")
+
+            st.balloons()
+
+        except FileNotFoundError:
+            st.error("Model file 'xgb.pkl' not found. Please ensure the model file is in the correct directory.")
+        except Exception as e:
+            st.error(f"An error occurred during prediction: {str(e)}")
+
+
+# -------------------------------------------------------------------------------------------------------------- #
+
+# Creating the sidebar with 3 options
+options = {
+    'Home': '🏠',
+    'EDA': '📊',
+    'Prediction': '🔮'
+}
+
+# Display the selected page content
+st.sidebar.title('Navigation')
+selected_page = st.sidebar.radio("Select a page", list(options.keys()))
+if selected_page == 'Home':
+    home()
+elif selected_page == 'EDA':
+    eda()
+elif selected_page == 'Prediction':
+    prediction()
