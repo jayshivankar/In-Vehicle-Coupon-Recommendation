@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 import pickle
 from xgboost import XGBClassifier
+import os
 
 # page config
 st.set_page_config(
@@ -63,9 +64,9 @@ def home():
             "Utilize our trained XGBoost model to predict coupon acceptance with 74% accuracy. Get real-time predictions based on customer demographics, context, and historical behavior.")
 
     st.write("Sincerely,")
-    st.subheader("Your Name Here")  # Replace with your name
-    linkedin_url = "https://www.linkedin.com/in/your-profile/"  # Replace with your LinkedIn
-    github_url = "https://github.com/your-profile"  # Replace with your GitHub
+    st.subheader("Jay Shivankar")
+    linkedin_url = "www.linkedin.com/in/jay-shivankar"
+    github_url = "https://github.com/jayshivankar"
 
     # Add links to your LinkedIn and GitHub profiles
     st.write(f"LinkedIn: [My LinkedIn Profile]({linkedin_url})", f"GitHub: [My GitHub Profile]({github_url})")
@@ -73,11 +74,31 @@ def home():
 
 # ------------------------------------------------------------------------------------------------------------ #
 
+def load_data():
+    """Load data with error handling"""
+    try:
+        data = pd.read_csv('in-vehicle-coupon-recommendation.csv')
+        return data
+    except FileNotFoundError:
+        st.error("❌ Dataset file 'in-vehicle-coupon-recommendation.csv' not found.")
+        st.info("Please make sure the CSV file is in the same directory as this app.")
+        return None
+    except Exception as e:
+        st.error(f"❌ Error loading dataset: {str(e)}")
+        return None
+
+
 def eda():
-    data = pd.read_csv('in-vehicle-coupon-recommendation.csv')
     st.subheader('Exploratory Data Analysis: Understanding Coupon Acceptance Patterns')
     st.write(
         'This section provides comprehensive insights into the factors influencing coupon acceptance. Through detailed visualizations and statistical analysis, we uncover the key drivers behind customer decisions to accept or reject coupons.')
+
+    # Load data with error handling
+    data = load_data()
+    if data is None:
+        st.warning(
+            "Cannot display EDA without the dataset. Please ensure 'in-vehicle-coupon-recommendation.csv' is available.")
+        return
 
     # Data preprocessing (same as your colab)
     data = data.drop(['car', 'toCoupon_GEQ5min', 'direction_opp'], axis=1)
@@ -258,10 +279,7 @@ def prediction():
         temperature = st.selectbox('Temperature', temperature_options, format_func=lambda x: temperature_display[x])
 
     with col2:
-        time_display = ('2PM', '10AM', '6PM', '7AM', '10PM')
-        time_options = list(range(len(time_display)))
-        time = st.selectbox('Time', time_options, format_func=lambda x: time_display[x])
-
+        # Removed time column as requested
         coupon_display = ('Restaurant(<20)', 'Coffee House', 'Carry out & Take away', 'Bar', 'Restaurant(20-50)')
         coupon_options = list(range(len(coupon_display)))
         coupon = st.selectbox('Coupon Type', coupon_options, format_func=lambda x: coupon_display[x])
@@ -361,9 +379,9 @@ def prediction():
             # Load your XGBoost model
             model = pickle.load(open('xgb.pkl', 'rb'))
 
-            # Prepare input data (match the order your model expects)
+            # Prepare input data (22 features now, without time)
             input_data = [
-                destination, passanger, weather, temperature, time, coupon,
+                destination, passanger, weather, temperature, coupon,
                 expiration, gender, age, maritalStatus, has_children,
                 education, occupation, income, Bar, CoffeeHouse,
                 CarryAway, RestaurantLessThan20, Restaurant20To50,
@@ -401,9 +419,11 @@ def prediction():
             st.balloons()
 
         except FileNotFoundError:
-            st.error("Model file 'xgb.pkl' not found. Please ensure the model file is in the correct directory.")
+            st.error("❌ Model file 'xgb.pkl' not found. Please ensure the model file is in the correct directory.")
+            st.info("Make sure you have trained and saved your XGBoost model as 'xgb.pkl'")
         except Exception as e:
-            st.error(f"An error occurred during prediction: {str(e)}")
+            st.error(f"❌ An error occurred during prediction: {str(e)}")
+            st.info("This might be due to feature mismatch between the model and input data")
 
 
 # -------------------------------------------------------------------------------------------------------------- #
