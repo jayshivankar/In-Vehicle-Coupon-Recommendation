@@ -4,7 +4,7 @@
 **CouponCraft** is an intelligent coupon recommendation system that predicts whether a customer will accept a coupon based on their **demographics**, **contextual factors**, and **behavioral patterns**.  
 It leverages **machine learning (XGBoost)** to provide personalized recommendations, helping businesses **optimize marketing strategies** and **boost customer engagement**.
 
-**🎥 Live Demo:** *Coming Soon*
+**🎥 Website link : https://in-vehicle-coupon-recommendation-qbwmhbfcbqbmzyylymhy39.streamlit.app/
 
 ---
 
